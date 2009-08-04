@@ -365,9 +365,11 @@ void proto_register_gwtb(void)
 		&ett_string
 	};
 
-	proto_gwtb = proto_register_protocol ("GWTB Protocol", PROTO_TAG_GWTB, "gwtb");
-	proto_register_field_array (proto_gwtb, hf, array_length (hf));
-	proto_register_subtree_array (ett, array_length (ett));
+	proto_gwtb = proto_register_protocol("GWTB Protocol", PROTO_TAG_GWTB, "gwtb");
+	proto_register_field_array(proto_gwtb, hf, array_length (hf));
+	proto_register_subtree_array(ett, array_length (ett));
+
+	register_dissector("gwtb", dissect_gwtb, proto_gwtb);
 }
 
 void proto_reg_handoff_gwtb(void)
