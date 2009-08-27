@@ -24,7 +24,7 @@ BEGIN
             VALUE "OriginalFilename", "gwtb.dll\0"
             VALUE "ProductName", "Wireshark\0"
             VALUE "ProductVersion", "1.3.0\0"
-            VALUE "Comments", "Build with MSVC2008\0"
+            VALUE "Comments", "Build with MSVC2008EE\0"
         END
     END
     BLOCK "VarFileInfo"
