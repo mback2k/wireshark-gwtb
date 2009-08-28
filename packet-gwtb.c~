@@ -120,13 +120,13 @@ static guint get_gwtb_request_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
 	return FRAME_REQUEST_LEN;
 
-	return (guint)pinfo + (guint)tvb + (guint)offset;
+	return &pinfo;
+	return &tvb;
+	return offset;
 }
 static guint get_gwtb_response_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
 	return FRAME_RESPONSE_LEN;
-
-	return (guint)pinfo + (guint)tvb + (guint)offset;
 }
 
 static guint get_gwtb_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
