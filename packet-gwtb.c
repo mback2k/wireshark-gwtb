@@ -353,7 +353,7 @@ void proto_register_gwtb(void)
 			{ "Data", "gwtb.data", FT_NONE, BASE_NONE, NULL, 0x0, "GWTB Data", HFILL }
 		},
 		{ &hf_authkey,
-			{ "Auth Key", "gwtb.authkey", FT_STRING, BASE_NONE, NULL, 0x0, "Auth Key", HFILL}
+			{ "Auth Key", "gwtb.authkey", FT_BYTES, BASE_HEX, NULL, 0x0, "Auth Key", HFILL}
 		},
 		{ &hf_length,
 			{ "Length", "gwtb.length", FT_UINT16, BASE_DEC, NULL, 0x0, "Length", HFILL}
