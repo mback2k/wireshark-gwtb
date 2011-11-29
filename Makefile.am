@@ -1,5 +1,5 @@
 # Makefile.am
-# Automake file for AgentX plugin
+# Automake file for gwtb plugin based upon AgentX plugin
 #
 # $Id: Makefile.am 25656 2008-07-02 01:44:30Z guy $
 #
