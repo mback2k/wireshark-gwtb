@@ -7,6 +7,8 @@ Release/
 *.pdb
 *.rc
 *.res
+*.sdf
+*.suo
 *.obj
 
 plugin.c
