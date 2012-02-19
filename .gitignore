@@ -1,0 +1,12 @@
+Debug/
+Release/
+
+*.dll
+*.exp
+*.lib
+*.pdb
+*.rc
+*.res
+*.obj
+
+plugin.c
