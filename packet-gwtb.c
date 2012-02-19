@@ -49,12 +49,10 @@ typedef struct gwtb_key_t {
 
 typedef struct gwtb_entry_t {
 	gwtb_key_t			*greeting;
-	gwtb_key_t			*request0;
-	gwtb_key_t			*request1;
-	gwtb_key_t			*response0;
-	gwtb_key_t			*response1;
-	rc4_state_struct	*request;
-	rc4_state_struct	*response;
+	gwtb_key_t			*request_key[2];
+	gwtb_key_t			*response_key[2];
+	rc4_state_struct	*request_rc4;
+	rc4_state_struct	*response_rc4;
 } gwtb_entry_t;
 
 /* Wireshark ID of the GWTB protocol */
@@ -67,18 +65,20 @@ static int proto_gwtb = -1;
 
 /** Kts attempt at defining the protocol */
 static gint hf_gwtb = -1;
+static gint hf_greeting = -1;
 static gint hf_authkey = -1;
 static gint hf_length = -1;
 static gint hf_string = -1;
 
 /* These are the ids of the subtrees that we may be creating */
 static gint ett_gwtb = -1;
+static gint ett_greeting = -1;
 static gint ett_authkey = -1;
 static gint ett_length = -1;
 static gint ett_string = -1;
 
 
-static gwtb_entry_t* dissect_gwtb_get_data(packet_info *pinfo)
+static gwtb_entry_t* dissect_gwtb_get_data(packet_info* pinfo)
 {
 	conversation_t *conversation;
 	gwtb_entry_t *data_ptr;
@@ -95,7 +95,7 @@ static gwtb_entry_t* dissect_gwtb_get_data(packet_info *pinfo)
 	/*
 	 * Do we already have a state structure for this conv
 	 */
-	data_ptr = conversation_get_proto_data(conversation, proto_gwtb);
+	data_ptr = (gwtb_entry_t*)conversation_get_proto_data(conversation, proto_gwtb);
 	if (!data_ptr) {
 		/*
          * No.  Attach that information to the conversation, and add
@@ -103,12 +103,12 @@ static gwtb_entry_t* dissect_gwtb_get_data(packet_info *pinfo)
 		 */
 		data_ptr = (gwtb_entry_t*)se_alloc(sizeof(gwtb_entry_t));
 		data_ptr->greeting = NULL;
-		data_ptr->request0 = NULL;
-		data_ptr->request1 = NULL;
-		data_ptr->response0 = NULL;
-		data_ptr->response1 = NULL;
-		data_ptr->request = NULL;
-		data_ptr->response = NULL;
+		data_ptr->request_key[0] = NULL;
+		data_ptr->request_key[1] = NULL;
+		data_ptr->response_key[0] = NULL;
+		data_ptr->response_key[1] = NULL;
+		data_ptr->request_rc4 = NULL;
+		data_ptr->response_rc4 = NULL;
 
 		conversation_add_proto_data(conversation, proto_gwtb, data_ptr);
 	}
@@ -119,34 +119,30 @@ static gwtb_entry_t* dissect_gwtb_get_data(packet_info *pinfo)
 static guint get_gwtb_request_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
 	return FRAME_REQUEST_LEN;
-
-	return (guint)pinfo + (guint)tvb + (guint)offset;
 }
 static guint get_gwtb_response_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
 	return FRAME_RESPONSE_LEN;
-
-	return (guint)pinfo + (guint)tvb + (guint)offset;
 }
 
 static guint get_gwtb_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
-	gwtb_info_t *info_ptr = p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
 	rc4_state_struct rc4 = *info_ptr->rc4;
 	guint32 length = tvb_length(tvb);
-	guint16 size = 0;
 	guchar *data;
 	guint len;
 
 	if (!info_ptr->length) {
 		data = (guchar*)ep_alloc(length);
-		tvb_memcpy(tvb, data, offset, length);
-		crypt_rc4(&rc4, data, length);
-		while (info_ptr->length < length) {
-			memcpy(&size, data+offset, FRAME_HEADER_LEN);
-			len = (guint)pntohs(&size)+FRAME_HEADER_LEN;
-			offset += len;
-			info_ptr->length += len;
+		if (data) {
+			tvb_memcpy(tvb, data, offset, length);
+			crypt_rc4(&rc4, data, length);
+			while (info_ptr->length < length) {
+				len = ((guint)pntohs((guint16*)(data+offset)))+FRAME_HEADER_LEN;
+				offset += len;
+				info_ptr->length += len;
+			}
 		}
 	}
 
@@ -157,11 +153,10 @@ static guint get_gwtb_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 static void dissect_gwtb_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	gwtb_entry_t *data_ptr = dissect_gwtb_get_data(pinfo);
-	gwtb_info_t *info_ptr = p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
 	proto_item *gwtb_item = NULL;
 	proto_tree *gwtb_tree = NULL;	
 	guint32 offset = 0;
-//	guint32 length = tvb_length(tvb);
 	guint32 i;
 
 	if (check_col(pinfo->cinfo, COL_PROTOCOL))
@@ -175,28 +170,28 @@ static void dissect_gwtb_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 			gwtb_item = proto_tree_add_item(tree, proto_gwtb, tvb, 0, -1, FALSE);
 			gwtb_tree = proto_item_add_subtree(gwtb_item, ett_gwtb);
 
-			proto_tree_add_item(gwtb_tree, hf_authkey, tvb, offset, 16, FALSE);
+			proto_tree_add_item(gwtb_tree, hf_greeting, tvb, offset, 16, FALSE);
 			proto_tree_add_item(gwtb_tree, hf_authkey, tvb, offset+16, 16, FALSE);
 			proto_tree_add_item(gwtb_tree, hf_authkey, tvb, offset+32, 16, FALSE);
 		}
 
-		if (data_ptr && data_ptr->request == NULL) {
+		if (data_ptr && data_ptr->request_rc4 == NULL) {
 			data_ptr->greeting = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
 			offset += sizeof(gwtb_key_t);
 
-			data_ptr->request0 = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
+			data_ptr->request_key[0] = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
 			offset += sizeof(gwtb_key_t);
 
-			data_ptr->request1 = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
+			data_ptr->request_key[1] = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
 			offset += sizeof(gwtb_key_t);
 
 			for (i = 0; i < sizeof(gwtb_key_t); i++) {
-				data_ptr->request1->chars[i] ^= data_ptr->request0->chars[i];
+				data_ptr->request_key[1]->chars[i] ^= data_ptr->request_key[0]->chars[i];
 			}
 
 			info_ptr->auth = TRUE;
-			data_ptr->request = (rc4_state_struct*)se_alloc(sizeof(rc4_state_struct));
-			crypt_rc4_init(data_ptr->request, data_ptr->request1->chars, sizeof(gwtb_key_t));
+			data_ptr->request_rc4 = (rc4_state_struct*)se_alloc(sizeof(rc4_state_struct));
+			crypt_rc4_init(data_ptr->request_rc4, data_ptr->request_key[1]->chars, sizeof(gwtb_key_t));
 		}
 	} else {
 		if (check_col(pinfo->cinfo, COL_INFO))
@@ -212,11 +207,10 @@ static void dissect_gwtb_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 static void dissect_gwtb_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	gwtb_entry_t *data_ptr = dissect_gwtb_get_data(pinfo);
-	gwtb_info_t *info_ptr = p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
 	proto_item *gwtb_item = NULL;
 	proto_tree *gwtb_tree = NULL;	
 	guint32 offset = 0;
-//	guint32 length = tvb_length(tvb);
 	guint32 i;
 
 	if (check_col(pinfo->cinfo, COL_PROTOCOL))
@@ -234,20 +228,20 @@ static void dissect_gwtb_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 			proto_tree_add_item(gwtb_tree, hf_authkey, tvb, offset+16, 16, FALSE);
 		}
 
-		if (data_ptr && data_ptr->response == NULL) {
-			data_ptr->response0 = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
+		if (data_ptr && data_ptr->response_rc4 == NULL) {
+			data_ptr->response_key[0] = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
 			offset += sizeof(gwtb_key_t);
 
-			data_ptr->response1 = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
+			data_ptr->response_key[1] = (gwtb_key_t *)tvb_get_ptr(tvb, offset, sizeof(gwtb_key_t));
 			offset += sizeof(gwtb_key_t);
 
 			for (i = 0; i < sizeof(gwtb_key_t); i++) {
-				data_ptr->response1->chars[i] ^= data_ptr->response0->chars[i];
+				data_ptr->response_key[1]->chars[i] ^= data_ptr->response_key[0]->chars[i];
 			}
 
 			info_ptr->auth = TRUE;
-			data_ptr->response = (rc4_state_struct*)se_alloc(sizeof(rc4_state_struct));
-			crypt_rc4_init(data_ptr->response, data_ptr->response1->chars, sizeof(gwtb_key_t));
+			data_ptr->response_rc4 = (rc4_state_struct*)se_alloc(sizeof(rc4_state_struct));
+			crypt_rc4_init(data_ptr->response_rc4, data_ptr->response_key[1]->chars, sizeof(gwtb_key_t));
 		}
 	} else {
 		if (check_col(pinfo->cinfo, COL_INFO))
@@ -260,9 +254,9 @@ static void dissect_gwtb_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 	}
 }
 
-static void dissect_gwtb_struct(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+static void dissect_gwtb_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-	gwtb_info_t *info_ptr = p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
 	tvbuff_t *next_tvb;
 	proto_item *gwtb_item = NULL;
 	proto_tree *gwtb_tree = NULL;
@@ -313,7 +307,7 @@ static void dissect_gwtb_struct(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 static void dissect_gwtb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	gwtb_entry_t *data_ptr = dissect_gwtb_get_data(pinfo);
-	gwtb_info_t *info_ptr = p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb);
 
 	if (!info_ptr) {
 		info_ptr = (gwtb_info_t*)se_alloc(sizeof(gwtb_info_t));
@@ -324,18 +318,18 @@ static void dissect_gwtb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	}
 
 	if (pinfo->match_port == pinfo->destport || TCP_PORT_GWTB == pinfo->destport) {
-		if ((!data_ptr->request || info_ptr->auth) && (!info_ptr->data)) {
+		if ((!data_ptr->request_rc4 || info_ptr->auth) && (!info_ptr->data)) {
 			tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_REQUEST_LEN, get_gwtb_request_len, dissect_gwtb_request);
 		} else if (!info_ptr->auth) {
-			info_ptr->rc4 = data_ptr->request;
-			tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN, get_gwtb_message_len, dissect_gwtb_struct);
+			info_ptr->rc4 = data_ptr->request_rc4;
+			tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN, get_gwtb_message_len, dissect_gwtb_message);
 		}
 	} else {
-		if ((!data_ptr->response || info_ptr->auth) && (!info_ptr->data)) {
+		if ((!data_ptr->response_rc4 || info_ptr->auth) && (!info_ptr->data)) {
 			tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_RESPONSE_LEN, get_gwtb_response_len, dissect_gwtb_response);
 		} else if (!info_ptr->auth) {
-			info_ptr->rc4 = data_ptr->response;
-			tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN, get_gwtb_message_len, dissect_gwtb_struct);
+			info_ptr->rc4 = data_ptr->response_rc4;
+			tcp_dissect_pdus(tvb, pinfo, tree, TRUE, FRAME_HEADER_LEN, get_gwtb_message_len, dissect_gwtb_message);
 		}
 	}
 }
@@ -352,6 +346,9 @@ void proto_register_gwtb(void)
 		{ &hf_gwtb,
 			{ "Data", "gwtb.data", FT_NONE, BASE_NONE, NULL, 0x0, "GWTB Data", HFILL }
 		},
+		{ &hf_greeting,
+			{ "Greeting", "gwtb.greeting", FT_BYTES, BASE_NONE, NULL, 0x0, "Greeting", HFILL}
+		},
 		{ &hf_authkey,
 			{ "Auth Key", "gwtb.authkey", FT_BYTES, BASE_NONE, NULL, 0x0, "Auth Key", HFILL}
 		},
@@ -364,6 +361,7 @@ void proto_register_gwtb(void)
 	};
 	static gint *ett[] = {
 		&ett_gwtb,
+		&ett_greeting,
 		&ett_authkey,
 		&ett_length,
 		&ett_string
@@ -381,10 +379,10 @@ void proto_reg_handoff_gwtb(void)
 	static int gwtb_initialized = FALSE;
 	static dissector_handle_t gwtb_handle;
 
-	if(!gwtb_initialized)
+	if (!gwtb_initialized)
 	{
-        gwtb_handle = create_dissector_handle(dissect_gwtb, proto_gwtb);
-        gwtb_initialized = TRUE;
+		gwtb_handle = create_dissector_handle(dissect_gwtb, proto_gwtb);
+		gwtb_initialized = TRUE;
 	}
 	else
 	{
