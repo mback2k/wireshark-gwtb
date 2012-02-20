@@ -64,7 +64,6 @@ static int proto_gwtb = -1;
 */
 
 /** Kts attempt at defining the protocol */
-static gint hf_gwtb = -1;
 static gint hf_greeting = -1;
 static gint hf_authkey = -1;
 static gint hf_length = -1;
@@ -72,10 +71,6 @@ static gint hf_string = -1;
 
 /* These are the ids of the subtrees that we may be creating */
 static gint ett_gwtb = -1;
-static gint ett_greeting = -1;
-static gint ett_authkey = -1;
-static gint ett_length = -1;
-static gint ett_string = -1;
 
 
 static gwtb_entry_t* dissect_gwtb_get_data(packet_info* pinfo)
@@ -343,9 +338,6 @@ void proto_register_gwtb(void)
 	* {&(field id), {name, abbrev, type, display, strings, bitmask, blurb, HFILL}}.
 	*/
 	static hf_register_info hf[] = {
-		{ &hf_gwtb,
-			{ "Data", "gwtb.data", FT_NONE, BASE_NONE, NULL, 0x0, "GWTB Data", HFILL }
-		},
 		{ &hf_greeting,
 			{ "Greeting", "gwtb.greeting", FT_BYTES, BASE_NONE, NULL, 0x0, "Greeting", HFILL}
 		},
@@ -360,11 +352,7 @@ void proto_register_gwtb(void)
 		}
 	};
 	static gint *ett[] = {
-		&ett_gwtb,
-		&ett_greeting,
-		&ett_authkey,
-		&ett_length,
-		&ett_string
+		&ett_gwtb
 	};
 
 	proto_gwtb = proto_register_protocol("GWTB Protocol", PROTO_TAG_GWTB, "gwtb");
