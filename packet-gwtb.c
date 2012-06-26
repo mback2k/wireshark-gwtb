@@ -63,7 +63,7 @@ static int proto_gwtb = -1;
 * proto_register_field_array() in proto_register_gwtb()
 */
 
-/** Kts attempt at defining the protocol */
+/** Defining the protocol */
 static gint hf_greeting = -1;
 static gint hf_authkey = -1;
 static gint hf_length = -1;
