@@ -28,7 +28,7 @@
 #include <epan/emem.h>
 #include <epan/conversation.h>
 #include <epan/dissectors/packet-tcp.h>
-#include <epan/crypt/crypt-rc4.c>
+#include <epan/crypt/rc4.c>
 
 #define PROTO_TAG_GWTB									"GWTB"
 #define TCP_PORT_GWTB									9924
