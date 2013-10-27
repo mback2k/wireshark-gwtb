@@ -127,12 +127,12 @@ static guint get_gwtb_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 	guint len;
 
 	if (!info_ptr->length) {
-		data = (guchar*)ep_alloc(length);
+		data = (guchar*) ep_alloc(length);
 		if (data) {
 			tvb_memcpy(tvb, data, offset, length);
 			crypt_rc4(&rc4, data, length);
 			while (info_ptr->length < length) {
-				len = ((guint)pntohs((guint16*)(data+offset)))+FRAME_HEADER_LEN;
+				len = ((guint) pntohs((guint16*) (data+offset)))+FRAME_HEADER_LEN;
 				offset += len;
 				info_ptr->length += len;
 			}
@@ -259,7 +259,7 @@ static void dissect_gwtb_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
 	if (!info_ptr->data) {
 		info_ptr->auth = FALSE;
-		info_ptr->data = (guchar*)se_alloc(length);
+		info_ptr->data = (guchar*) se_alloc(length);
 		tvb_memcpy(tvb, info_ptr->data, offset, length);
 		crypt_rc4(info_ptr->rc4, info_ptr->data, length);
 	}
@@ -303,7 +303,7 @@ static void dissect_gwtb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb, 0);
 
 	if (!info_ptr) {
-		info_ptr = (gwtb_info_t*)se_alloc(sizeof(gwtb_info_t));
+		info_ptr = (gwtb_info_t*) se_alloc(sizeof(gwtb_info_t));
 		info_ptr->length = 0;
 		info_ptr->auth = FALSE;
 		info_ptr->data = NULL;
@@ -354,8 +354,8 @@ void proto_register_gwtb(void)
 	};
 
 	proto_gwtb = proto_register_protocol("GWTB Protocol", PROTO_TAG_GWTB, "gwtb");
-	proto_register_field_array(proto_gwtb, hf, array_length (hf));
-	proto_register_subtree_array(ett, array_length (ett));
+	proto_register_field_array(proto_gwtb, hf, array_length(hf));
+	proto_register_subtree_array(ett, array_length(ett));
 
 	register_dissector("gwtb", dissect_gwtb, proto_gwtb);
 }
@@ -365,13 +365,10 @@ void proto_reg_handoff_gwtb(void)
 	static int gwtb_initialized = FALSE;
 	static dissector_handle_t gwtb_handle;
 
-	if (!gwtb_initialized)
-	{
+	if (!gwtb_initialized) {
 		gwtb_handle = create_dissector_handle(dissect_gwtb, proto_gwtb);
 		gwtb_initialized = TRUE;
-	}
-	else
-	{
+	} else {
 		dissector_delete_uint("tcp.port", TCP_PORT_GWTB, gwtb_handle);
 	}
 
