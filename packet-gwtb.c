@@ -83,11 +83,7 @@ static gwtb_entry_t* dissect_gwtb_get_data(packet_info* pinfo)
 	/*
 	 * Do we have a conversation for this connection?
 	 */
-	conversation = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst, pinfo->ptype, pinfo->srcport, pinfo->destport, 0);
-	if (conversation == NULL) {
-		/* We don't yet have a conversation, so create one. */
-		conversation = conversation_new(pinfo->fd->num, &pinfo->src, &pinfo->dst, pinfo->ptype,	pinfo->srcport, pinfo->destport, 0);
-	}
+	conversation = find_or_create_conversation(pinfo);
 
 	/*
 	 * Do we already have a state structure for this conv
@@ -124,7 +120,7 @@ static guint get_gwtb_response_len(packet_info *pinfo, tvbuff_t *tvb, int offset
 
 static guint get_gwtb_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 {
-	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb, 0);
 	rc4_state_struct rc4 = *info_ptr->rc4;
 	guint32 length = tvb_length(tvb);
 	guchar *data;
@@ -150,7 +146,7 @@ static guint get_gwtb_message_len(packet_info *pinfo, tvbuff_t *tvb, int offset)
 static void dissect_gwtb_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	gwtb_entry_t *data_ptr = dissect_gwtb_get_data(pinfo);
-	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb, 0);
 	proto_item *gwtb_item = NULL;
 	proto_tree *gwtb_tree = NULL;	
 	guint32 offset = 0;
@@ -204,7 +200,7 @@ static void dissect_gwtb_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 static void dissect_gwtb_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	gwtb_entry_t *data_ptr = dissect_gwtb_get_data(pinfo);
-	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb, 0);
 	proto_item *gwtb_item = NULL;
 	proto_tree *gwtb_tree = NULL;	
 	guint32 offset = 0;
@@ -253,7 +249,7 @@ static void dissect_gwtb_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 
 static void dissect_gwtb_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-	gwtb_info_t *info_ptr = (gwtb_info_t*)p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb, 0);
 	tvbuff_t *next_tvb;
 	proto_item *gwtb_item = NULL;
 	proto_tree *gwtb_tree = NULL;
@@ -304,14 +300,14 @@ static void dissect_gwtb_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 static void dissect_gwtb(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	gwtb_entry_t *data_ptr = dissect_gwtb_get_data(pinfo);
-	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb);
+	gwtb_info_t *info_ptr = (gwtb_info_t*) p_get_proto_data(pinfo->fd, proto_gwtb, 0);
 
 	if (!info_ptr) {
 		info_ptr = (gwtb_info_t*)se_alloc(sizeof(gwtb_info_t));
 		info_ptr->length = 0;
 		info_ptr->auth = FALSE;
 		info_ptr->data = NULL;
-		p_add_proto_data(pinfo->fd, proto_gwtb, info_ptr);
+		p_add_proto_data(pinfo->fd, proto_gwtb, 0, info_ptr);
 	}
 
 	if (pinfo->match_port == pinfo->destport || TCP_PORT_GWTB == pinfo->destport) {
@@ -376,8 +372,8 @@ void proto_reg_handoff_gwtb(void)
 	}
 	else
 	{
-		dissector_delete("tcp.port", TCP_PORT_GWTB, gwtb_handle);
+		dissector_delete_uint("tcp.port", TCP_PORT_GWTB, gwtb_handle);
 	}
 
-	dissector_add("tcp.port", TCP_PORT_GWTB, gwtb_handle);
+	dissector_add_uint("tcp.port", TCP_PORT_GWTB, gwtb_handle);
 }
